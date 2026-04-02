@@ -11,6 +11,10 @@ This project has a React frontend and a Flask backend (Python) that provides mul
 
 ## Folder Structure
 
+### The Folders `(Models, data)` are not present in this github repo because of large size and it is important to have it in `Backend/` folder
+#### Download those folder by clicking on this drive link : 
+https://drive.google.com/drive/folders/1Wuc0zzi-vEChhskf1gA3xritz1UkRa5R?usp=sharing
+
 ```text
 MedBridge_Ai_project/
   Backend/
