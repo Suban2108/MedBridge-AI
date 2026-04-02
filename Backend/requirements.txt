@@ -1,0 +1,16 @@
+flask
+flask-cors
+numpy
+pandas
+Pillow
+torch
+torchvision
+timm
+tensorflow
+keras
+scikit-learn
+fuzzywuzzy
+python-Levenshtein
+spacy
+nltk
+joblib
