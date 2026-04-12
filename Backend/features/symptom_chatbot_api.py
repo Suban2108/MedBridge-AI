@@ -4,6 +4,7 @@ import uuid
 from flask import Blueprint, jsonify, request
 import pandas as pd
 
+from features.ml_models import predict_chatbot_disease_from_symptoms
 
 symptom_chatbot_bp = Blueprint("symptom_chatbot_bp", __name__)
 
@@ -102,15 +103,18 @@ def _confidence_from_scores(best_score, second_score, n_requested):
 def _predict_by_overlap_with_confidence(input_symptoms):
     """
     Returns (disease, confidence_percent, detail_dict) or (None, 0.0, {}).
-    Per-disease score = max overlap between user symptoms and any training row
-    for that disease.
+    Uses Naive Bayes for disease prediction and original symptom overlap heuristic
+    for confidence calibration.
     """
     if df_training.empty or not symptom_cols or "Disease" not in df_training.columns:
         return None, 0.0, {}
 
     requested = {_normalize_symptom(s) for s in input_symptoms if str(s).strip()}
-    n_req = len(requested)
-    if n_req == 0:
+    if not requested:
+        return None, 0.0, {}
+
+    disease, _ = predict_chatbot_disease_from_symptoms(requested)
+    if not disease:
         return None, 0.0, {}
 
     disease_scores = {}
@@ -130,15 +134,16 @@ def _predict_by_overlap_with_confidence(input_symptoms):
     if not ranked or ranked[0][1] <= 0:
         return None, 0.0, {}
 
-    best_disease, best_score = ranked[0]
+    best_score = ranked[0][1]
     second_score = ranked[1][1] if len(ranked) > 1 else 0
-    confidence = _confidence_from_scores(best_score, second_score, n_req)
+    confidence = _confidence_from_scores(best_score, second_score, len(requested))
+
     detail = {
-        "symptoms_provided": n_req,
+        "symptoms_provided": len(requested),
         "symptoms_matched": best_score,
         "runner_up_score": second_score,
     }
-    return best_disease, confidence, detail
+    return disease, confidence, detail
 
 
 def _severity_label(input_symptoms):
