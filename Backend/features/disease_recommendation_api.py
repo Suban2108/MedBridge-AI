@@ -3,6 +3,8 @@ import os
 from flask import Blueprint, jsonify, request
 import pandas as pd
 
+from features.ml_models import predict_recommendation_disease
+
 
 disease_recommendation_bp = Blueprint("disease_recommendation_bp", __name__)
 
@@ -62,36 +64,25 @@ def _confidence_from_scores(best_score, second_score, n_requested):
 def _predict_disease_with_confidence(symptoms):
     """
     Returns (prognosis, confidence_percent, detail_dict) or (None, 0.0, {}).
-    Scores are max symptom overlap per disease label across all training rows.
+    Uses a Random Forest classifier trained on the medical recommendation dataset.
     """
     if df_train.empty or "prognosis" not in df_train.columns:
         return None, 0.0, {}
+
     requested = {_normalize(x) for x in symptoms if str(x).strip()}
-    n_req = len(requested)
-    if n_req == 0:
+    if not requested:
         return None, 0.0, {}
 
-    disease_scores = {}
-    for _, row in df_train.iterrows():
-        dis = str(row["prognosis"]).strip()
-        row_symptoms = {_normalize(c) for c in symptom_columns if row.get(c) == 1}
-        score = len(requested.intersection(row_symptoms))
-        disease_scores[dis] = max(disease_scores.get(dis, 0), score)
-
-    ranked = sorted(disease_scores.items(), key=lambda x: -x[1])
-    if not ranked or ranked[0][1] <= 0:
+    predicted, confidence_percent, matched_count, runner_up = predict_recommendation_disease(requested)
+    if not predicted:
         return None, 0.0, {}
-
-    best_disease, best_score = ranked[0]
-    second_score = ranked[1][1] if len(ranked) > 1 else 0
-    confidence = _confidence_from_scores(best_score, second_score, n_req)
 
     detail = {
-        "symptoms_provided": n_req,
-        "symptoms_matched": best_score,
-        "runner_up_score": second_score,
+        "symptoms_provided": len(requested),
+        "symptoms_matched": matched_count,
+        "runner_up_score": runner_up,
     }
-    return best_disease, confidence, detail
+    return predicted, confidence_percent, detail
 
 
 def _pluck_list(df, disease, key_col, value_col):

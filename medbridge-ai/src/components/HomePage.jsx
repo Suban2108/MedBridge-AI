@@ -165,7 +165,7 @@ const HomePage = ({ setCurrentPage }) => {
               About MedBridge.ai
             </div>
             <h2 className="text-4xl font-bold text-gray-900 mb-6">
-              Bridging the Healthcare Gap in Rural Communities
+              Bridging the Healthcare Gap in Remote Communities
             </h2>
             <p className="text-lg text-gray-600 mb-6">
               MedBridge.ai is an AI-powered diagnostic system specifically designed for resource-constrained environments. We empower rural health workers, ASHA workers, and auxiliary nurse midwives with cutting-edge technology.

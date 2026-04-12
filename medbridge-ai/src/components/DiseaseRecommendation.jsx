@@ -150,10 +150,11 @@ export default function DiseaseRecommendation() {
                   )}
                 </div>
               )}
-              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-3">
+    {/*          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-3">
                 Confidence is a heuristic from symptom overlap in the dataset, not a clinical
                 probability. Always see a qualified professional for diagnosis.
               </p>
+              */}
               <p className="text-gray-600 mt-2">{result.description}</p>
             </div>
 
