@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import torch
 import torch.nn as nn
 import timm
@@ -11,11 +12,18 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from torchvision import transforms
 from PIL import Image
+import pytesseract
 from werkzeug.utils import secure_filename
 from tensorflow.keras.applications.efficientnet import preprocess_input as skin_preprocess
 from difflib import get_close_matches
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
 from features.symptom_chatbot_api import symptom_chatbot_bp
 from features.disease_recommendation_api import disease_recommendation_bp
+
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 
 # ==============================
@@ -34,6 +42,7 @@ DISEASE_DATA_DIR = "data"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY")) if (OpenAI and os.getenv("OPENAI_API_KEY")) else None
 
 
 # ==============================
@@ -235,6 +244,217 @@ def predict_xray(image_path):
 
 
 # ==============================
+# OCR POST PROCESSING HELPERS
+# ==============================
+
+OCR_COMMON_REPLACEMENTS = {
+    "rn": "m",
+    "|": "I",
+}
+
+SECTION_KEYWORDS = {
+    "patient_information": ["patient", "name", "age", "gender", "dob", "date of birth", "id"],
+    "clinical_history": ["history", "complaint", "symptoms", "clinical history", "reason"],
+    "findings": ["finding", "observation", "exam", "result"],
+    "impression": ["impression", "assessment", "diagnosis", "conclusion"],
+    "prescription": ["prescription", "medication", "dose", "dosage", "tablet", "capsule", "syrup"],
+    "advice": ["advice", "recommend", "follow up", "precaution", "instruction"],
+}
+
+
+def clean_ocr_text(raw_text):
+    if not raw_text:
+        return ""
+
+    text = raw_text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    for wrong, right in OCR_COMMON_REPLACEMENTS.items():
+        text = text.replace(wrong, right)
+
+    cleaned_lines = []
+    for line in text.split("\n"):
+        normalized = line.strip()
+        if not normalized:
+            cleaned_lines.append("")
+            continue
+        normalized = re.sub(r"[^A-Za-z0-9.,:%()/+\- ]", "", normalized)
+        normalized = re.sub(r"\s{2,}", " ", normalized).strip()
+        cleaned_lines.append(normalized)
+
+    text = "\n".join(cleaned_lines)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    return text
+
+
+def split_sections(cleaned_text):
+    sections = {k: [] for k in SECTION_KEYWORDS}
+    sections["other"] = []
+
+    for line in cleaned_text.split("\n"):
+        if not line.strip():
+            continue
+
+        lowered = line.lower()
+        best_section = "other"
+        best_score = 0
+
+        for section_name, keywords in SECTION_KEYWORDS.items():
+            score = sum(1 for kw in keywords if kw in lowered)
+            if score > best_score:
+                best_score = score
+                best_section = section_name
+
+        sections[best_section].append(line)
+
+    # Convert lists into readable paragraphs and only keep non-empty sections.
+    return {k: " ".join(v) for k, v in sections.items() if v}
+
+
+def extract_abnormal_markers(cleaned_text):
+    markers = []
+    lines = cleaned_text.split("\n")
+    for line in lines:
+        lower = line.lower()
+        if any(flag in lower for flag in ["high", "low", "abnormal", "critical", "positive"]):
+            markers.append(line)
+    return markers[:8]
+
+
+def build_ocr_metrics(cleaned_text):
+    """
+    Lightweight, processing-based quality metrics for OCR result cards.
+    These are heuristic confidence scores, not model probabilities.
+    """
+    if not cleaned_text.strip():
+        return {
+            "drug_name_accuracy": 0.0,
+            "dosage_accuracy": 0.0,
+            "date_accuracy": 0.0,
+        }
+
+    # Drug cues: medicine words, brands, Rx-like lines.
+    drug_keywords = ["tablet", "tab", "capsule", "cap", "syrup", "injection", "mg", "ml"]
+    drug_hits = sum(1 for kw in drug_keywords if re.search(rf"\b{re.escape(kw)}\b", cleaned_text, re.I))
+    drug_score = min(97.0, 55.0 + (drug_hits * 7.5))
+
+    # Dosage cues: number+unit and frequency patterns.
+    dosage_patterns = [
+        r"\b\d+(\.\d+)?\s?(mg|ml|g|mcg)\b",
+        r"\b(once|twice|thrice)\s+(daily|a day)\b",
+        r"\b\d+\s?(x|times)\s?(daily|day)\b",
+        r"\b(before|after)\s+(food|meal)\b",
+    ]
+    dosage_hits = sum(1 for pat in dosage_patterns if re.search(pat, cleaned_text, re.I))
+    dosage_score = min(98.0, 50.0 + (dosage_hits * 12.0))
+
+    # Date cues: common date formats.
+    date_patterns = [
+        r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",
+        r"\b\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}\b",
+        r"\b[A-Za-z]{3,9}\s+\d{1,2},\s+\d{4}\b",
+    ]
+    date_hits = sum(1 for pat in date_patterns if re.search(pat, cleaned_text))
+    date_score = min(99.0, 45.0 + (date_hits * 22.0))
+
+    return {
+        "drug_name_accuracy": round(drug_score, 1),
+        "dosage_accuracy": round(dosage_score, 1),
+        "date_accuracy": round(date_score, 1),
+    }
+
+
+def llm_descriptive_summary(cleaned_text, sections, abnormal_markers):
+    if not cleaned_text:
+        return {
+            "clinical_summary": "No OCR text available for summarization.",
+            "patient_summary": "No readable text was extracted from the document.",
+            "recommended_next_steps": ["Retake a clearer image and try again."],
+            "structured_sections": {},
+            "safety_note": "This is AI-generated information and not a medical diagnosis.",
+        }
+
+    if not openai_client:
+        return {
+            "clinical_summary": "LLM summary disabled because OPENAI_API_KEY is not configured.",
+            "patient_summary": (
+                "Text has been cleaned and structured, but descriptive summary is unavailable "
+                "until an LLM API key is configured."
+            ),
+            "recommended_next_steps": [
+                "Set OPENAI_API_KEY in Backend environment variables.",
+                "Re-run OCR to generate a descriptive summary.",
+            ],
+            "structured_sections": sections,
+            "safety_note": "This is AI-generated information and not a medical diagnosis.",
+        }
+
+    prompt = (
+    "You are an OCR text formatting assistant.\n"
+    "Task:\n"
+    "1) Clean and correct OCR errors (spelling, broken words, symbols).\n"
+    "2) Reconstruct proper sentences and paragraphs.\n"
+    "3) Organize the content into a clear, easy-to-read structure.\n"
+    "4) Extract and format key information into structured sections.\n\n"
+    
+    "Constraints:\n"
+    "- Do not invent or assume missing information.\n"
+    "- If text is unclear or corrupted, indicate uncertainty.\n"
+    "- Preserve the original meaning of the text.\n"
+    "- Remove noise (random characters, repeated words, broken lines).\n"
+    "- Keep formatting clean and human-readable.\n\n"
+    
+    "Output Format (STRICT JSON):\n"
+    "- cleaned_text: fully corrected and well-formatted text\n"
+    "- summary: short summary of the document\n"
+    "- key_points: array of important points\n"
+    "- structured_sections: object\n\n"
+    
+    "structured_sections should include (if applicable):\n"
+    "- title\n"
+    "- headings\n"
+    "- paragraphs\n"
+    "- lists\n"
+    "- tables (converted to readable text)\n"
+    "- dates\n"
+    "- names\n"
+    "- numbers\n"
+    "- other_important_details\n\n"
+    
+    "- Use empty string or empty array if data is not present.\n"
+    "- Keep output concise but complete.\n\n"
+    
+    f"Source OCR text:\n{cleaned_text}"
+)
+
+    try:
+        completion = openai_client.responses.create(
+            model="gpt-4o-mini",
+            input=prompt,
+            temperature=0.2,
+        )
+        output_text = completion.output_text or "{}"
+        parsed = json.loads(output_text)
+
+        return {
+            "clinical_summary": str(parsed.get("clinical_summary", "")).strip(),
+            "patient_summary": str(parsed.get("patient_summary", "")).strip(),
+            "recommended_next_steps": parsed.get("recommended_next_steps", []),
+            "structured_sections": parsed.get("structured_sections", sections),
+            "safety_note": "This is AI-generated information and not a medical diagnosis.",
+        }
+    except Exception as err:
+        return {
+            "clinical_summary": f"LLM summary failed: {str(err)}",
+            "patient_summary": "Showing cleaned OCR text only due to LLM failure.",
+            "recommended_next_steps": ["Check API key/model access and retry."],
+            "structured_sections": sections,
+            "safety_note": "This is AI-generated information and not a medical diagnosis.",
+        }
+
+
+# ==============================
 # EYE DETECTION API
 # ==============================
 
@@ -297,6 +517,47 @@ def xray_detection():
         return jsonify({"type": "xray", "prediction": prediction, "confidence": f"{confidence}%"})
     except Exception as e:
         print("XRAY ERROR:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# ==============================
+# OCR DOCUMENT EXTRACTION API
+# ==============================
+
+@app.route("/api/v1/ocr/extract", methods=["POST"])
+def ocr_extract():
+    try:
+        if "document" not in request.files:
+            return jsonify({"error": "No document uploaded"}), 400
+
+        file = request.files["document"]
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(file_path)
+
+        image = Image.open(file_path)
+        raw_text = pytesseract.image_to_string(image)
+        cleaned_text = clean_ocr_text(raw_text)
+        ocr_metrics = build_ocr_metrics(cleaned_text)
+        heuristic_sections = split_sections(cleaned_text)
+        abnormal_markers = extract_abnormal_markers(cleaned_text)
+        summary = llm_descriptive_summary(cleaned_text, heuristic_sections, abnormal_markers)
+        llm_structured_sections = summary.get("structured_sections", heuristic_sections)
+
+        return jsonify({
+            "type": "ocr",
+            "text": raw_text,  # keep backward compatibility
+            "raw_text": raw_text,
+            "cleaned_text": cleaned_text,
+            "sections": llm_structured_sections,
+            "heuristic_sections": heuristic_sections,
+            "abnormal_markers": abnormal_markers,
+            "summary": summary,
+            "metrics": ocr_metrics,
+            "llm_enabled": bool(openai_client),
+        })
+    except Exception as e:
+        print("OCR ERROR:", e)
         return jsonify({"error": str(e)}), 500
 
 

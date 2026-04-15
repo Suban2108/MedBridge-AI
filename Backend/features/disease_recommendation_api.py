@@ -3,8 +3,7 @@ import os
 from flask import Blueprint, jsonify, request
 import pandas as pd
 
-from features.ml_models import predict_recommendation_disease
-
+from features.ml_models import predict_recommendation_disease_topk
 
 disease_recommendation_bp = Blueprint("disease_recommendation_bp", __name__)
 
@@ -61,28 +60,18 @@ def _confidence_from_scores(best_score, second_score, n_requested):
     return round(min(98.0, coverage * (0.55 + 0.45 * margin)), 1)
 
 
-def _predict_disease_with_confidence(symptoms):
+def _predict_diseases_with_confidence(symptoms, top_k=3):
     """
-    Returns (prognosis, confidence_percent, detail_dict) or (None, 0.0, {}).
-    Uses a Random Forest classifier trained on the medical recommendation dataset.
+    Returns a list of top candidate diseases with confidence data.
     """
     if df_train.empty or "prognosis" not in df_train.columns:
-        return None, 0.0, {}
+        return []
 
     requested = {_normalize(x) for x in symptoms if str(x).strip()}
     if not requested:
-        return None, 0.0, {}
+        return []
 
-    predicted, confidence_percent, matched_count, runner_up = predict_recommendation_disease(requested)
-    if not predicted:
-        return None, 0.0, {}
-
-    detail = {
-        "symptoms_provided": len(requested),
-        "symptoms_matched": matched_count,
-        "runner_up_score": runner_up,
-    }
-    return predicted, confidence_percent, detail
+    return predict_recommendation_disease_topk(requested, top_k=top_k)
 
 
 def _pluck_list(df, disease, key_col, value_col):
@@ -122,39 +111,51 @@ def disease_recommendation_predict():
     if not symptoms:
         return jsonify({"error": "symptoms is required"}), 400
 
-    predicted, confidence_percent, conf_detail = _predict_disease_with_confidence(symptoms)
-    if not predicted:
+    candidates = _predict_diseases_with_confidence(symptoms, top_k=3)
+    if not candidates:
         return jsonify({"error": "Unable to predict disease from available dataset"}), 500
 
-    description = ""
-    if not df_desc.empty and "Disease" in df_desc.columns and "Description" in df_desc.columns:
-        rows = df_desc[df_desc["Disease"] == predicted]["Description"].dropna().tolist()
-        description = rows[0] if rows else ""
+    top_diseases = []
+    for candidate in candidates:
+        disease = candidate["disease"]
+        description = ""
+        if not df_desc.empty and "Disease" in df_desc.columns and "Description" in df_desc.columns:
+            rows = df_desc[df_desc["Disease"] == disease]["Description"].dropna().tolist()
+            description = rows[0] if rows else ""
 
-    precautions = []
-    if not df_prec.empty and "Disease" in df_prec.columns:
-        rows = df_prec[df_prec["Disease"] == predicted]
-        if not rows.empty:
-            r = rows.iloc[0]
-            for c in ["Precaution_1", "Precaution_2", "Precaution_3", "Precaution_4"]:
-                if c in rows.columns and pd.notna(r[c]):
-                    precautions.append(str(r[c]).strip())
+        precautions = []
+        if not df_prec.empty and "Disease" in df_prec.columns:
+            rows = df_prec[df_prec["Disease"] == disease]
+            if not rows.empty:
+                r = rows.iloc[0]
+                for c in ["Precaution_1", "Precaution_2", "Precaution_3", "Precaution_4"]:
+                    if c in rows.columns and pd.notna(r[c]):
+                        precautions.append(str(r[c]).strip())
 
-    medications = _expand_python_list_cells(
-        _pluck_list(df_med, predicted, "Disease", "Medication")
-    )
-    diets = _expand_python_list_cells(
-        _pluck_list(df_diet, predicted, "Disease", "Diet")
-    )
-    workouts = _pluck_list(df_workout, predicted, "disease", "workout")
+        medications = _expand_python_list_cells(
+            _pluck_list(df_med, disease, "Disease", "Medication")
+        )
+        diets = _expand_python_list_cells(
+            _pluck_list(df_diet, disease, "Disease", "Diet")
+        )
+        workouts = _pluck_list(df_workout, disease, "disease", "workout")
+
+        top_diseases.append({
+            "disease": disease,
+            "confidence_percent": candidate.get("confidence_percent", 0.0),
+            "confidence_detail": {
+                "symptoms_provided": len(symptoms),
+                "symptoms_matched": candidate.get("matched_count", 0),
+                "runner_up_score": candidate.get("runner_up_score", 0.0),
+            },
+            "description": description,
+            "precautions": precautions,
+            "medications": medications,
+            "diets": diets,
+            "workouts": workouts,
+        })
 
     return jsonify({
-        "predicted_disease": predicted,
-        "confidence_percent": confidence_percent,
-        "confidence_detail": conf_detail,
-        "description": description,
-        "precautions": precautions,
-        "medications": medications,
-        "diets": diets,
-        "workouts": workouts,
+        "predicted_disease": top_diseases[0]["disease"],
+        "top_diseases": top_diseases,
     })
