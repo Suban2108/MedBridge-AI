@@ -5,9 +5,8 @@ const Navigation = ({ currentPage, setCurrentPage, isLoggedIn, setIsLoggedIn, mo
     { name: 'Home', id: 'home' },
     { name: 'Image Detection', id: 'image-detection' },
     { name: 'OCR Reports', id: 'ocr-reports' },
-    // { name: 'Chatbot', id: 'chatbot' },
     { name: 'Preventive Advice', id: 'preventive' },
-    { name: 'Symptom Chatbot', id: 'symptom-prediction' },
+    { name: 'Chatbot', id: 'symptom-prediction' },
     { name: 'Disease Recommendation', id: 'disease-recommendation' },
   ];
 
@@ -31,7 +30,7 @@ const Navigation = ({ currentPage, setCurrentPage, isLoggedIn, setIsLoggedIn, mo
               <button
                 key={item.id}
                 onClick={() => setCurrentPage(item.id)}
-                className={`px-5 py-2 rounded-lg font-medium transition-all text-sm ${
+                className={`px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                   currentPage === item.id 
                     ? 'bg-cyan-100 text-cyan-700' 
                     : 'text-gray-700 hover:bg-gray-100'

@@ -3,6 +3,7 @@ flask-cors
 numpy
 pandas
 Pillow
+pytesseract
 scikit-learn
 torch
 torchvision
@@ -15,3 +16,4 @@ python-Levenshtein
 spacy
 nltk
 joblib
+openai

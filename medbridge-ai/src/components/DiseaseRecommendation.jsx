@@ -7,6 +7,7 @@ export default function DiseaseRecommendation() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -27,12 +28,16 @@ export default function DiseaseRecommendation() {
       }
 
       setResult(data);
+      setSelectedIndex(0);
     } catch (err) {
       setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
   };
+
+  const sortedTopDiseases = result?.top_diseases?.slice().sort((b,a) => a.confidence_percent - b.confidence_percent) ?? [];
+  const selectedDisease = sortedTopDiseases[selectedIndex] ?? null;
 
   const renderCard = (title, items) => {
     if (!items) return null;
@@ -125,45 +130,82 @@ export default function DiseaseRecommendation() {
         )}
 
         {/* 📊 Result */}
-        {result && (
+        {result && result.top_diseases?.length > 0 && (
           <div className="mt-8 bg-white rounded-2xl shadow-lg p-6 space-y-6 border border-gray-100">
+            <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                    Top {result.top_diseases.length} disease candidates
+                  </h3>
+                  <div className="space-y-2">
+                    {sortedTopDiseases.map((candidate, idx) => (
+                      <button
+                        key={candidate.disease}
+                        type="button"
+                        onClick={() => setSelectedIndex(idx)}
+                        className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                          idx === selectedIndex
+                            ? "border-cyan-500 bg-cyan-50 shadow-sm"
+                            : "border-gray-200 bg-white hover:border-gray-300"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-semibold text-gray-900">
+                            {candidate.disease}
+                          </span>
+                          <span className="inline-flex items-center rounded-full bg-cyan-100 px-2.5 py-1 text-xs font-semibold text-cyan-800">
+                            {candidate.confidence_percent}%
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Matched {candidate.confidence_detail?.symptoms_matched} of {candidate.confidence_detail?.symptoms_provided} symptom{candidate.confidence_detail?.symptoms_provided !== 1 ? "s" : ""}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Disease Title */}
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                {result.predicted_disease}
-              </h2>
-              {typeof result.confidence_percent === "number" && (
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <span className="inline-flex items-center rounded-full bg-cyan-50 px-3 py-1 text-sm font-semibold text-cyan-800 ring-1 ring-cyan-200">
-                    Confidence: {result.confidence_percent}%
-                  </span>
-                  {result.confidence_detail && (
-                    <span className="text-xs text-gray-500">
-                      Matched {result.confidence_detail.symptoms_matched} of{" "}
-                      {result.confidence_detail.symptoms_provided} symptom
-                      {result.confidence_detail.symptoms_provided !== 1 ? "s" : ""} you entered
-                      {typeof result.confidence_detail.runner_up_score === "number"
-                        ? ` · next-best overlap: ${result.confidence_detail.runner_up_score}`
-                        : ""}
-                    </span>
-                  )}
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-gray-500">
+                    Selected disease details
+                  </h3>
+                  <p className="mt-2 text-sm text-gray-600">
+                    Click a disease above to view its description, precautions, medications, diets, and workouts.
+                  </p>
+                </div>
+              </div>
+
+              {selectedDisease && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {selectedDisease.disease}
+                    </h2>
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <span className="inline-flex items-center rounded-full bg-cyan-50 px-3 py-1 text-sm font-semibold text-cyan-800 ring-1 ring-cyan-200">
+                        Confidence: {selectedDisease.confidence_percent}%
+                      </span>
+                      {selectedDisease.confidence_detail && (
+                        <span className="text-xs text-gray-500">
+                          Matched {selectedDisease.confidence_detail.symptoms_matched} of {selectedDisease.confidence_detail.symptoms_provided} symptom{selectedDisease.confidence_detail.symptoms_provided !== 1 ? "s" : ""}
+                          {typeof selectedDisease.confidence_detail.runner_up_score === "number"
+                            ? ` · next-best overlap: ${selectedDisease.confidence_detail.runner_up_score}`
+                            : ""}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-gray-600 mt-2">{selectedDisease.description}</p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {renderCard("Precautions", selectedDisease.precautions)}
+                    {renderCard("Medications", selectedDisease.medications)}
+                    {renderCard("Diets", selectedDisease.diets)}
+                    {renderCard("Workouts", selectedDisease.workouts)}
+                  </div>
                 </div>
               )}
-    {/*          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-3">
-                Confidence is a heuristic from symptom overlap in the dataset, not a clinical
-                probability. Always see a qualified professional for diagnosis.
-              </p>
-              */}
-              <p className="text-gray-600 mt-2">{result.description}</p>
-            </div>
-
-            {/* Grid Sections */}
-            <div className="grid md:grid-cols-2 gap-4">
-              {renderCard("Precautions", result.precautions)}
-              {renderCard("Medications", result.medications)}
-              {renderCard("Diets", result.diets)}
-              {renderCard("Workouts", result.workouts)}
             </div>
           </div>
         )}

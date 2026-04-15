@@ -136,6 +136,47 @@ def predict_recommendation_disease(symptoms):
     return disease, confidence, matched_count, round(float(second_best_score) * 100.0, 1)
 
 
+def predict_recommendation_disease_topk(symptoms, top_k=3):
+    """
+    Return the top-k candidate diseases sorted by model confidence.
+    """
+    if RECOMMENDATION_MODEL is None:
+        return []
+
+    feature_vector = _build_feature_vector(symptoms)
+    if not feature_vector or sum(feature_vector[0]) == 0:
+        return []
+
+    probabilities = RECOMMENDATION_MODEL.predict_proba(feature_vector)[0]
+    classes = list(RECOMMENDATION_MODEL.classes_)
+    ranked = sorted(
+        [
+            {"disease": classes[i], "probability": float(prob)}
+            for i, prob in enumerate(probabilities)
+        ],
+        key=lambda item: -item["probability"],
+    )[:top_k]
+
+    matched_count = int(sum(feature_vector[0]))
+    n_requested = len(symptoms)
+    coverage = 100.0 * matched_count / n_requested if n_requested > 0 else 0.0
+
+    for idx, candidate in enumerate(ranked):
+        prob = candidate["probability"]
+        next_prob = ranked[idx + 1]["probability"] if idx + 1 < len(ranked) else 0.0
+        if next_prob >= prob:
+            confidence = round(min(70.0, coverage), 1)
+        else:
+            margin = (prob - next_prob) / prob if prob > 0 else 0.0
+            confidence = round(min(98.0, coverage * (0.55 + 0.45 * margin)), 1)
+
+        candidate["confidence_percent"] = confidence
+        candidate["matched_count"] = matched_count
+        candidate["runner_up_score"] = round(next_prob * 100.0, 1)
+
+    return ranked
+
+
 def predict_chatbot_disease_from_symptoms(symptoms):
     """
     Hybrid approach: Use Naive Bayes for disease classification,
