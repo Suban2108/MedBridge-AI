@@ -23,7 +23,8 @@ except ImportError:
 from features.symptom_chatbot_api import symptom_chatbot_bp
 from features.disease_recommendation_api import disease_recommendation_bp
 
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+pytesseract.pytesseract.tesseract_cmd = "/opt/homebrew/bin/tesseract"
 
 
 # ==============================
