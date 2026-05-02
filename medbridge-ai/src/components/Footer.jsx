@@ -2,7 +2,7 @@ import { Heart, Phone, Clock } from 'lucide-react';
 
 const Footer = ({ setCurrentPage }) => {
   return (
-    <footer className="bg-gray-900 text-white py-12 mt-20">
+    <footer className="bg-gray-900 text-white py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
@@ -51,7 +51,7 @@ const Footer = ({ setCurrentPage }) => {
         </div>
         
         <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400 text-sm">
-          <p>&copy; 2026 MedBridge.ai. Built for rural healthcare workers. All rights reserved.</p>
+          <p>&copy; 2026 MedBridge.ai. Built for remote healthcare workers. All rights reserved.</p>
         </div>
       </div>
     </footer>

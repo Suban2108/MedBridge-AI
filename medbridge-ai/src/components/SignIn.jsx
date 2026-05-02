@@ -8,7 +8,8 @@ const SignIn = ({ setIsLoggedIn, setCurrentPage }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-cyan-50 to-blue-50 flex items-center justify-center py-12 px-4">
+    <div className="bg-gradient-to-br from-cyan-50 to-blue-50 flex items-center justify-center py-12 px-4 bg-cover bg-center relative"
+    style={{ backgroundImage: "url('/Hospital_bg.png')" }}>
       <div className="max-w-md w-full">
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <div className="text-center mb-8">

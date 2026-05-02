@@ -621,7 +621,7 @@ Else determine next bot response based on data collected:
 - Cannot assess severity without vital signs
 - Limited to symptoms in training dataset
 - Cannot diagnose complex/multi-system diseases accurately
-- No integration with medical imaging or lab results
+- No integration with medical imaging
 - Cannot detect urgent/emergent conditions
 
 ### Recommended User Guidance

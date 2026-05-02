@@ -16,4 +16,3 @@ python-Levenshtein
 spacy
 nltk
 joblib
-openai

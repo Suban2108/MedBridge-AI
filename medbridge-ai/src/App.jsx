@@ -7,8 +7,10 @@ import Chatbot from './components/Chatbot';
 import PreventiveAdvice from './components/PreventiveAdvice';
 import SignIn from './components/SignIn';
 import Footer from './components/Footer';
+import './index.css';
 import SymptomPredictionChatbot from './components/SymptomPredictionChatbot';
 import DiseaseRecommendation from './components/DiseaseRecommendation';
+import EmergencyAI from './components/EmergencyAI';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('home');
@@ -36,6 +38,8 @@ function App() {
         return <SymptomPredictionChatbot />;
       case 'disease-recommendation':
         return <DiseaseRecommendation />;
+      case 'emergency':
+        return <EmergencyAI/>  
       case 'signin':
         return <SignIn setIsLoggedIn={setIsLoggedIn} setCurrentPage={setCurrentPage} />;
       default:

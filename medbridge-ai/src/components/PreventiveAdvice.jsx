@@ -7,7 +7,7 @@ import {
   Thermometer, Shield, X, ChevronRight
 } from "lucide-react";
 
-const API = "http://localhost:8000/api/v1/preventive-advice";
+const API = `${window.location.protocol}//${window.location.hostname}:8000/api/v1/preventive-advice`;
 
 const SEVERITY_STYLES = {
   mild:     { badge: "bg-green-100 text-green-700",   dot: "bg-green-500",  bar: "bg-green-400",  width: "w-1/4"  },
@@ -110,12 +110,13 @@ export default function PreventiveAdvice() {
   const sev = disease ? (SEVERITY_STYLES[disease.severity] || SEVERITY_STYLES.moderate) : null;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-4xl mx-auto px-4">
+    <div className="min-h-screen bg-gray-50 py-12 bg-cover bg-center relative" style={{ backgroundImage: "url('/Hospital_bg.png')" }}>
+      <div className="absolute inset-0 bg-white/30"></div>
+      <div className="max-w-7xl mx-auto px-4 relative z-10">
 
         {/* ── Title ── */}
         <h1 className="text-4xl font-bold mb-2">Preventive Healthcare Advice</h1>
-        <p className="text-gray-500 mb-8 text-lg">
+        <p className="text-gray-900 mb-8 text-lg">
           Search from {allDiseases.length} diseases — symptoms, precautions and audio briefing.
         </p>
 
@@ -166,7 +167,7 @@ export default function PreventiveAdvice() {
             <button
               onClick={() => query.trim() && fetchDisease(query.trim())}
               disabled={loading || !query.trim()}
-              className="px-6 py-3 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40
+              className="px-6 py-3 bg-cyan-400 hover:bg-cyan-700 disabled:opacity-50
                          text-white font-semibold rounded-lg transition-colors"
             >
               Search

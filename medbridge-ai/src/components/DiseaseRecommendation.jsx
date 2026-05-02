@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { cachedJsonPost } from "../utils/offlineCache";
 
-const API = "http://localhost:8000/api/v1/disease-recommendation/predict";
+const API = `${window.location.protocol}//${window.location.hostname}:8000/api/v1/disease-recommendation/predict`;
 
 export default function DiseaseRecommendation() {
   const [symptoms, setSymptoms] = useState("");
@@ -16,12 +17,7 @@ export default function DiseaseRecommendation() {
     setResult(null);
 
     try {
-      const response = await fetch(API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symptoms }),
-      });
-
+      const response = await cachedJsonPost(API, { symptoms });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || "Prediction failed");
@@ -59,7 +55,7 @@ export default function DiseaseRecommendation() {
       } catch {
         // Fallback: clean string and split
         listItems = items
-          .replace(/[\[\]'"]/g, "") // remove brackets & quotes
+          .replace(/[\\[\]'"]/g, "") // remove brackets & quotes
           .split(",")
           .map((i) => i.trim())
           .filter(Boolean);
@@ -79,14 +75,15 @@ export default function DiseaseRecommendation() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 py-12">
-      <div className="max-w-5xl mx-auto px-4">
+    <div className="min-h-screen bg-gray-100 py-12 bg-cover bg-center relative" style={{ backgroundImage: "url('/Hospital_bg.png')" }}>
+      <div className="absolute inset-0 bg-white/30"></div>
+      <div className="max-w-5xl mx-auto px-4 relative z-10">
 
         {/* 🔵 Header */}
         <div className="rounded-2xl overflow-hidden shadow-lg mb-8">
-          <div className="bg-gradient-to-r from-cyan-600 to-blue-600 px-6 py-6">
+          <div className="bg-gradient-to-br from-[#0D7490] to-cyan-500 px-6 py-6">
             <h1 className="text-3xl font-bold text-white">
-              Disease Prediction & Recommendations
+              Disease Prediction
             </h1>
             <p className="text-white/80 mt-1">
               Get predicted disease, medications, diet plans and precautions
@@ -116,7 +113,7 @@ export default function DiseaseRecommendation() {
           <button
             type="submit"
             disabled={loading}
-            className="px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:opacity-90 disabled:opacity-50 text-white rounded-lg font-semibold transition"
+            className="px-6 py-3 bg-gradient-to-br from-[#0D7490] to-cyan-400 hover:opacity-90 disabled:opacity-50 text-white rounded-lg font-semibold transition"
           >
             {loading ? "Predicting..." : "Predict"}
           </button>

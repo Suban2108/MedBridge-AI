@@ -2,8 +2,8 @@ import { MessageCircle } from 'lucide-react';
 
 const Chatbot = () => {
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-12" style={{ backgroundImage: "url('/Hospital_bg.png')" }}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">AI Health Assistant</h1>
           <p className="text-lg text-gray-600">Describe your symptoms and get preliminary diagnostic assistance with multilingual support.</p>

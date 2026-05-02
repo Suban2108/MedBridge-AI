@@ -11,9 +11,9 @@ export default defineConfig({
       devOptions: {
         enabled: true,
       },
-      includeAssets: ['vite.svg'],
+      includeAssets: ['heart.png'],
       manifest: {
-        name: 'MedBridge AI',
+        name: 'MedBridge.ai',
         short_name: 'MedBridge',
         description: 'AI-powered medical diagnosis and recommendations',
         theme_color: '#06b6d4',
@@ -23,7 +23,7 @@ export default defineConfig({
         scope: '/',
         icons: [
           {
-            src: '/vite.svg',
+            src: '/heart.png',
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'any',

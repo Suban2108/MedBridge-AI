@@ -7,16 +7,17 @@ const Navigation = ({ currentPage, setCurrentPage, isLoggedIn, setIsLoggedIn, mo
     { name: 'OCR Reports', id: 'ocr-reports' },
     { name: 'Preventive Advice', id: 'preventive' },
     { name: 'Chatbot', id: 'symptom-prediction' },
-    { name: 'Disease Recommendation', id: 'disease-recommendation' },
+    { name: 'Disease Prediction', id: 'disease-recommendation' },
+    { name: 'Emergency', id: 'emergency' },
   ];
 
   return (
     <nav className="bg-white shadow-lg sticky top-0 z-50">
       <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
+        <div className="flex justify-between items-center h-[60px]">
           {/* Logo */}
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => setCurrentPage('home')}>
-            <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center">
+            <div className="w-12 h-12 bg-gradient-to-br from-[#0D7490] to-cyan-400 rounded-lg flex items-center justify-center">
               <Heart className="w-7 h-7 text-white" />
             </div>
             <span className="text-2xl font-bold text-gray-900">
@@ -34,7 +35,7 @@ const Navigation = ({ currentPage, setCurrentPage, isLoggedIn, setIsLoggedIn, mo
                   currentPage === item.id 
                     ? 'bg-cyan-100 text-cyan-700' 
                     : 'text-gray-700 hover:bg-gray-100'
-                }`}
+                } ${currentPage === 'emergency' && currentPage === item.id ? 'px-6 py-3 bg-red-500 text-red-900 hover:bg-red-300 border border-red-300' : ''}`}
               >
                 {item.name}
               </button>
@@ -46,21 +47,18 @@ const Navigation = ({ currentPage, setCurrentPage, isLoggedIn, setIsLoggedIn, mo
             {isLoggedIn ? (
               <button 
                 onClick={() => setIsLoggedIn(false)} 
-                className="px-6 py-2 text-gray-700 hover:text-gray-900 font-semibold"
+                className="px-6 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-lg  text-white hover:text-gray-400 font-semibold"
               >
                 Sign Out
               </button>
             ) : (
               <button 
                 onClick={() => setCurrentPage('signin')} 
-                className="px-6 py-2 text-gray-700 hover:text-gray-900 font-semibold"
+                className="px-6 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-lg  text-white hover:text-gray-400 font-semibold"
               >
                 Sign In
               </button>
             )}
-            <button className="px-6 py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold transition-all shadow-md">
-              Emergency
-            </button>
           </div>
 
           {/* Mobile Menu Button */}

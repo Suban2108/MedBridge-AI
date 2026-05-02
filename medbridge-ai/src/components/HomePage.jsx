@@ -20,7 +20,7 @@ const HomePage = ({ setCurrentPage }) => {
               
               <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
                 Advanced Medical Care<br />
-                <span className="text-cyan-300">for Rural Healthcare</span>
+                <span className="text-cyan-300">for Remote Healthcare</span>
               </h1>
               
               <p className="text-xl text-gray-200 mb-8">

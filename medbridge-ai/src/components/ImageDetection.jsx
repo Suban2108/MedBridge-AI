@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { Camera } from "lucide-react";
+import { cachedFormPost } from "../utils/offlineCache";
 
 const ImageDetection = () => {
   const [selectedType, setSelectedType] = useState("Eye Diseases");
@@ -8,7 +9,9 @@ const ImageDetection = () => {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [result, setResult] = useState(null);
+  const [aiResponse, setAiResponse] = useState("");
   const [loading, setLoading] = useState(false);
+
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -17,6 +20,54 @@ const ImageDetection = () => {
     setFile(selectedFile);
     setPreview(URL.createObjectURL(selectedFile));
     setResult(null);
+    setAiResponse("");
+  };
+
+  const generateAIExplanation = async (predictionData) => {
+    try {
+      const prompt = `
+You are a medical assistant.
+
+Based on the following detection result:
+Condition: ${predictionData.prediction}
+Confidence: ${predictionData.confidence}
+
+Generate a structured response:
+1. Condition Explanation (simple)
+2. Remedies / Precautions
+
+Keep it patient-friendly and concise.
+and keep it short and simple. use bold for condition name and confidence. use bullet points for causes and remedies.
+`;
+
+      const response = await axios.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          model: "llama-3.1-8b-instant",
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          temperature: 0.2,
+          max_tokens: 1000,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
+          },
+        },
+      );
+
+      const text = response.data.choices?.[0]?.message?.content || "";
+
+      setAiResponse(text);
+    } catch (err) {
+      console.error(err);
+      setAiResponse("Failed to generate AI explanation.");
+    }
   };
 
   const handleUpload = async () => {
@@ -30,30 +81,29 @@ const ImageDetection = () => {
 
     let apiURL = "";
 
-    // 🔥 Decide API based on selected type
     if (selectedType === "Eye Diseases") {
-      apiURL = "http://localhost:8000/api/v1/eye-detection/predict";
-      formData.append("mode", eyeMode); // required by backend
+      apiURL = `${window.location.protocol}//${window.location.hostname}:8000/api/v1/eye-detection/predict`;
+      formData.append("mode", eyeMode);
     }
 
     if (selectedType === "Skin Conditions") {
-      apiURL = "http://localhost:8000/api/v1/skin-detection/predict";
+      apiURL = `${window.location.protocol}//${window.location.hostname}:8000/api/v1/skin-detection/predict`;
     }
 
     if (selectedType === "Chest X-Ray") {
-      apiURL = "http://localhost:8000/api/v1/xray-detection/predict";
+      apiURL = `${window.location.protocol}//${window.location.hostname}:8000/api/v1/xray-detection/predict`;
     }
 
     try {
       setLoading(true);
 
-      const response = await axios.post(apiURL, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      const response = await cachedFormPost(apiURL, formData);
+      const data = await response.json();
 
-      setResult(response.data);
+      setResult(data);
+
+      // 🔥 AI Explanation call
+      await generateAIExplanation(data);
     } catch (error) {
       console.error(error);
       alert("Error analyzing image");
@@ -63,117 +113,134 @@ const ImageDetection = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-4xl mx-auto px-4">
-        <h1 className="text-4xl font-bold mb-6">Medical Image Detection</h1>
+    <div
+      className="min-h-screen bg-cover bg-center relative"
+      style={{ backgroundImage: "url('/Hospital_bg.png')" }}
+    >
+      <div className="absolute inset-0 bg-white/60"></div>
 
-        {/* Condition Type Selection */}
-        <div className="mb-6">
-          <label className="block font-semibold mb-3">
-            Select Condition Type
-          </label>
+      <div className="max-w-7xl mx-auto px-4 py-10 relative z-10">
+        <h1 className="text-4xl font-bold mb-8 text-black">
+          Medical Image Detection
+        </h1>
 
-          <div className="grid grid-cols-3 gap-4">
-            {["Skin Conditions", "Eye Diseases", "Chest X-Ray"].map(
-              (type) => (
-                <button
-                  key={type}
-                  onClick={() => {
-                    setSelectedType(type);
-                    setResult(null);
-                  }}
-                  className={`px-4 py-3 rounded-lg border-2 transition ${
-                    selectedType === type
-                      ? "border-cyan-600 bg-cyan-100"
-                      : "border-gray-300"
-                  }`}
-                >
-                  {type}
-                </button>
-              )
+        {/* 🔥 TWO COLUMN LAYOUT */}
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* ================= LEFT PANEL ================= */}
+          <div className="bg-white/70 backdrop-blur-lg p-6 rounded-2xl shadow-xl">
+            {/* Type Selection */}
+            <div className="mb-6">
+              <label className="font-semibold mb-3 block">
+                Select Condition Type
+              </label>
+
+              <div className="grid grid-cols-3 gap-3">
+                {["Skin Conditions", "Eye Diseases", "Chest X-Ray"].map(
+                  (type) => (
+                    <button
+                      key={type}
+                      onClick={() => {
+                        setSelectedType(type);
+                        setResult(null);
+                        setAiResponse("");
+                      }}
+                      className={`p-3 rounded-lg border ${
+                        selectedType === type
+                          ? "bg-[#0D7490] text-white"
+                          : "bg-white"
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  ),
+                )}
+              </div>
+            </div>
+
+            {/* Eye Mode */}
+            {selectedType === "Eye Diseases" && (
+              <div className="mb-6">
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setEyeMode("external")}
+                    className={`px-4 py-2 rounded ${
+                      eyeMode === "external"
+                        ? "bg-green-500 text-white"
+                        : "bg-gray-200"
+                    }`}
+                  >
+                    External
+                  </button>
+                  <button
+                    onClick={() => setEyeMode("retinal")}
+                    className={`px-4 py-2 rounded ${
+                      eyeMode === "retinal"
+                        ? "bg-purple-500 text-white"
+                        : "bg-gray-200"
+                    }`}
+                  >
+                    Retinal
+                  </button>
+                </div>
+              </div>
             )}
-          </div>
-        </div>
 
-        {/* Eye Mode Selection */}
-        {selectedType === "Eye Diseases" && (
-          <div className="mb-6">
-            <label className="block font-semibold mb-3">
-              Select Eye Image Type
+            {/* Upload */}
+            <label className="cursor-pointer block border-2 border-dashed p-10 text-center rounded-xl hover:border-[#0D7490]">
+              <Camera className="mx-auto mb-3 text-gray-400" size={40} />
+              Upload Image
+              <input
+                type="file"
+                className="hidden"
+                onChange={handleFileChange}
+              />
             </label>
 
-            <div className="flex gap-4">
-              <button
-                onClick={() => setEyeMode("external")}
-                className={`px-4 py-2 rounded-lg border-2 ${
-                  eyeMode === "external"
-                    ? "border-green-600 bg-green-100"
-                    : "border-gray-300"
-                }`}
-              >
-                External Eye
-              </button>
+            {preview && (
+              <img src={preview} alt="preview" className="mt-4 rounded-lg" />
+            )}
 
-              <button
-                onClick={() => setEyeMode("retinal")}
-                className={`px-4 py-2 rounded-lg border-2 ${
-                  eyeMode === "retinal"
-                    ? "border-purple-600 bg-purple-100"
-                    : "border-gray-300"
-                }`}
-              >
-                Retinal Image
-              </button>
-            </div>
+            <button
+              onClick={handleUpload}
+              className="w-full mt-6 bg-[#0D7490] text-white py-3 rounded-lg"
+            >
+              {loading ? "Analyzing..." : "Analyze Image"}
+            </button>
           </div>
-        )}
 
-        {/* Upload Box */}
-        <div className="bg-white p-8 rounded-xl shadow">
-          <label className="cursor-pointer block border-4 border-dashed border-gray-300 rounded-xl p-12 text-center hover:border-cyan-500 transition">
-            <Camera className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <p className="font-semibold">Click to upload image</p>
+          {/* ================= RIGHT PANEL ================= */}
+          <div className="bg-white/80 backdrop-blur-lg p-6 rounded-2xl shadow-xl">
+            {!result && (
+              <p className="text-gray-500 text-center mt-20">
+                Analysis results will appear here
+              </p>
+            )}
 
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-          </label>
+            {result && (
+              <>
+                <h2 className="text-xl font-bold mb-4 text-[#0D7490]">
+                  Detection Result
+                </h2>
 
-          {/* Preview */}
-          {preview && (
-            <div className="mt-6 text-center">
-              <img
-                src={preview}
-                alt="Preview"
-                className="mx-auto max-h-64 rounded-lg"
-              />
-            </div>
-          )}
+                <div className="mb-4 p-4 bg-green-50 rounded-lg">
+                  <p>
+                    <strong>Condition:</strong> {result.prediction}
+                  </p>
+                  <p>
+                    <strong>Confidence:</strong> {result.confidence}
+                  </p>
+                </div>
 
-          {/* Analyze Button */}
-          <button
-            onClick={handleUpload}
-            disabled={loading}
-            className="w-full mt-6 bg-cyan-600 hover:bg-cyan-700 text-white py-4 rounded-lg font-semibold transition"
-          >
-            {loading ? "Analyzing..." : "Analyze Image"}
-          </button>
-
-          {/* Result */}
-          {result && (
-            <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <h3 className="text-lg font-bold">
-                Prediction: {result.prediction}
-              </h3>
-
-              <p>Confidence: {result.confidence}</p>
-
-              {result.mode && <p>Mode: {result.mode}</p>}
-            </div>
-          )}
+                {/* 🔥 AI RESPONSE */}
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg whitespace-pre-line">
+                  <h3 className="font-semibold mb-2 text-[#0D7490]">
+                    AI Medical Guidance
+                  </h3>
+                  {aiResponse || "Generating explanation..."}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
