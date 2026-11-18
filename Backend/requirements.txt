@@ -16,3 +16,5 @@ python-Levenshtein
 spacy
 nltk
 joblib
+openai-whisper
+boto3
